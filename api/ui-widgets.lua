@@ -1,6 +1,94 @@
 -- load pfUI environment
 setfenv(1, pfUI:GetEnvironment())
 
+do -- statusbars
+  local animations = {}
+  local stepsize
+
+  CreateFrame("Frame", "pfStatusBars"):SetScript("OnUpdate", function()
+    stepsize = tonumber(pfUI_config.unitframes.animation_speed)
+
+    for bar in pairs(animations) do
+      if not bar.val_ or abs(bar.val_ - bar.val) < stepsize then
+        bar:DisplayValue(bar.val)
+      elseif bar.val ~= bar.val_ then
+        bar:DisplayValue(bar.val_ + min((bar.val-bar.val_) / stepsize, max(bar.val-bar.val_, 30 / GetFramerate())))
+      end
+    end
+  end)
+
+  local handlers = {
+    ["DisplayValue"] = function(self, val)
+      local val = val > self.max and self.max or val < self.min and self.min or val
+
+      if val == self.val_ then
+        animations[self] = nil
+      else
+        local width = self:GetWidth()
+        local point = width / (self.max - self.min) * (val - self.min)
+
+        self.bar:SetPoint("RIGHT", - width + point, 0)
+        self.bg:SetPoint("LEFT", point, 0)
+        self.val_ = val
+      end
+    end,
+
+    ["SetMinMaxValues"] = function(self, smin, smax)
+      self.min, self.max = smin, smax
+      self:DisplayValue(self.val_ or self.val) -- trim value into limits
+    end,
+
+    ["SetValue"] = function(self, val)
+      self.val = val or 0
+      animations[self] = true
+    end,
+
+    ["SetStatusBarTexture"] = function(self, r, g, b, a)
+      self.bar:SetTexture(r, g, b, a)
+    end,
+
+    ["SetStatusBarColor"] = function(self, r, g, b, a)
+      self.bar:SetVertexColor(r, g, b, a)
+    end,
+
+    ["SetStatusBarBackgroundTexture"] = function(self, r, g, b, a)
+      self.bg:SetTexture(r, g, b, a)
+    end,
+
+    ["SetStatusBarBackgroundColor"] = function(self, r, g, b, a)
+      self.bg:SetVertexColor(r, g, b, a)
+    end,
+
+    ["SetOrientation"] = function(self, mode)
+      -- TODO
+      self.mode = mode
+    end,
+  }
+
+  function pfUI.api.CreateStatusBar(name, parent)
+    local f = CreateFrame("Button", name, parent)
+    f:EnableMouse(nil)
+
+    f.bar = f:CreateTexture(nil, "NORMAL")
+    f.bar:SetPoint("TOPLEFT", 0, 0)
+    f.bar:SetPoint("BOTTOMLEFT", 0, 0)
+
+    f.bg = f:CreateTexture(nil, "NORMAL")
+    f.bg:SetPoint("TOPRIGHT", 0, 0)
+    f.bg:SetPoint("BOTTOMRIGHT", 0, 0)
+
+    -- set some default values
+    f.min, f.max, f.val = 0, 100, 0
+
+    -- add all handler functions to the object
+    for name, func in pairs(handlers) do
+      f[name] = func
+    end
+
+    return f
+  end
+end
+
 function pfUI.api.CreateTabChild(self, title, bwidth, bheight, bottom, static)
   -- create tab button
   local b = CreateFrame("Button", "pfConfig" .. title .. "Button", self, "UIPanelButtonTemplate")
